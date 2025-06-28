@@ -4,6 +4,7 @@ import { OrbitControls, Environment } from '@react-three/drei';
 import { useNavigate } from 'react-router-dom';
 import { useModel } from './ModelContext';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import * as THREE from 'three';
 
 function Model({ model }) {
   const scene = useRef();
@@ -12,11 +13,72 @@ function Model({ model }) {
   ) : null;
 }
 
+function CameraController({ cameraRef }) {
+  const moveSpeed = 0.1;
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (!cameraRef.current) return;
+      
+      const camera = cameraRef.current;
+      const direction = new THREE.Vector3();
+      let leftVector, rightVector;
+      
+      switch(event.key.toLowerCase()) {
+        case 'w':
+        case 'arrowup':
+          // Move forward in camera direction
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(moveSpeed));
+          break;
+        case 's':
+        case 'arrowdown':
+          // Move backward opposite to camera direction
+          camera.getWorldDirection(direction);
+          camera.position.add(direction.multiplyScalar(-moveSpeed));
+          break;
+        case 'a':
+        case 'arrowleft': {
+          // Move left perpendicular to camera direction
+          camera.getWorldDirection(direction);
+          leftVector = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
+          camera.position.add(leftVector.multiplyScalar(moveSpeed));
+          break;
+        }
+        case 'd':
+        case 'arrowright': {
+          // Move right perpendicular to camera direction
+          camera.getWorldDirection(direction);
+          rightVector = new THREE.Vector3(direction.z, 0, -direction.x).normalize();
+          camera.position.add(rightVector.multiplyScalar(moveSpeed));
+          break;
+        }
+        case 'q':
+          // Move up in world space
+          camera.position.y += moveSpeed;
+          break;
+        case 'e':
+          // Move down in world space
+          camera.position.y -= moveSpeed;
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cameraRef]);
+
+  return null;
+}
+
 export default function ModelViewer() {
   const navigate = useNavigate();
   const { modelFile } = useModel();
   const [model, setModel] = useState(null);
   const [error, setError] = useState(null);
+  const cameraRef = useRef();
 
   useEffect(() => {
     if (!modelFile) return;
@@ -89,6 +151,23 @@ export default function ModelViewer() {
       >
         ← Back to Upload
       </button>
+      
+      <div style={{
+        position: 'absolute',
+        top: '20px',
+        right: '20px',
+        zIndex: 1000,
+        padding: '10px 20px',
+        background: 'rgba(0,0,0,0.7)',
+        color: 'white',
+        borderRadius: '5px',
+        fontSize: '14px'
+      }}>
+        <div>WASD / Arrow Keys: Move</div>
+        <div>Q/E: Up/Down</div>
+        <div>Mouse: Rotate/Zoom</div>
+      </div>
+
       <Canvas 
         camera={{ position: [2, 2, 2], fov: 75 }}
         style={{ 
@@ -106,12 +185,16 @@ export default function ModelViewer() {
           alpha: false,
           powerPreference: "high-performance"
         }}
+        onCreated={({ camera }) => {
+          cameraRef.current = camera;
+        }}
       >
         <ambientLight intensity={0.5} />
         <directionalLight position={[5, 10, 7]} />
         <Model model={model} />
         <Environment preset="sunset" />
         <OrbitControls />
+        <CameraController cameraRef={cameraRef} />
       </Canvas>
     </div>
   );
